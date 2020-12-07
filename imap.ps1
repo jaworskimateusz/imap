@@ -41,9 +41,6 @@ if ($success -ne $true) {
     exit
 }
 
-# $numberOfMails = $imap.NumMessages
-# $email = $imap.FetchSingle($numberOfMails, $bUid)
-
 # Get the set of unseen message UIDs
 $messageSet = $imap.Search($notSeenSearch, $fetchUids)
 if ($imap.LastMethodSuccess -eq $false) {
@@ -70,7 +67,7 @@ while($i -lt $numberOfMails) {
     if ($isStudent) {
 
         $studentDir = $email.FromAddress.Split("@")[0]
-        Write-Host $email.EmailDateStr # todo create str variable like: yyyy-MM-dd 
+        $emailDate = $email.EmailDate.ToString("dd-MM-yyyy")
 
         #creating directory for student
         if ( Test-Path -Path "$basePath\$studentDir" -PathType Container ) {
@@ -80,14 +77,22 @@ while($i -lt $numberOfMails) {
             "Directory for student: $studentDir was created."
         }
 
+        #create directory for student with date
+        if ( Test-Path -Path "$basePath\$studentDir\$emailDate" -PathType Container ) {
+            "Folder $studentDir\$emailDate already exists in path: $basePath\" 
+        } else { 
+            New-Item -Path $basePath -Name "\$studentDir\$emailDate" -ItemType "directory"
+            "Directory for today' mail: $studentDir\$emailDate was created."
+        }
+
         #creating .html file with email content in student' dir
         $fileTitle =  $email.Subject
-        $content = $email.Body
-	    Set-Content -Path "$basePath\$studentDir\$fileTitle.html" -Value $content
+        $content = $email.Body.Replace("charset=iso-8859-2","charset=""UTF-8""")
+	    Set-Content -Path "$basePath\$studentDir\$emailDate\$fileTitle.html" -Value $content
 
         #downloading attachments from email
         for ($i = 0; $i -lt $imap.GetMailNumAttach($email); $i++) {
-          $imap.FetchAttachment($email, $i, "$basePath\$studentDir")
+          $imap.FetchAttachment($email, $i, "$basePath\$studentDir\$emailDate")
         }
             
     } else {
