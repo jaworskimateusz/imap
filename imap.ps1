@@ -10,10 +10,16 @@ $imap.Ssl = $true
 $imap.Port = 993
 $imap_server = "outlook.office365.com"
 $bUid = $false
+$fetchUids = $true
 $login = "01129802@pw.edu.pl"
 $password = ""
 $mailbox = "Inbox"
 $basePath = -join("C:\Users\", $env:username, "\Studenci")
+$basePathOthers = -join("C:\Users\", $env:username, "\Pozostałe")
+$notSeenSearch = "NOT SEEN"
+
+
+# --------- Main logic starts --------------
 
 $success = $imap.Connect($imap_server)
 if ($success -ne $true) {
@@ -35,57 +41,65 @@ if ($success -ne $true) {
     exit
 }
 
-# --------- Main logic starts --------------
+# $numberOfMails = $imap.NumMessages
+# $email = $imap.FetchSingle($numberOfMails, $bUid)
 
-$numberOfMails = $imap.NumMessages
-$email = $imap.FetchSingle($numberOfMails, $bUid)
-$isStudent = $email.FromAddress.EndsWith('stud@pw.edu.pl')
+# Get the set of unseen message UIDs
+$messageSet = $imap.Search($notSeenSearch, $fetchUids)
+if ($imap.LastMethodSuccess -eq $false) {
+    $($imap.LastErrorText)
+    exit
+}
 
-createDirectory($email)
+# Fetch the unseen emails into a bundle object:
+$bundle = $imap.FetchBundle($messageSet)
+if ($imap.LastMethodSuccess -eq $false) {
 
-saveEmailContent($numberOfMails)
+    $($imap.LastErrorText)
+    exit
+}
 
-downloadEmailAttachments($numberOfMails)
+$i = 0
+$numberOfMails = $bundle.MessageCount
+# Loop over unseen emails
+while($i -lt $numberOfMails) {
 
+    $email = $bundle.GetEmail($i)
+    $isStudent = $email.FromAddress.EndsWith('stud@pw.edu.pl')
 
-#for ($i = $numberOfMails; $i -gt 0; $i--) {
+    if ($isStudent) {
 
-    # $email = $imap.FetchSingle($numberOfMails, $bUid)
-    # $imap.GetMailFlag($email, '\Seen') 
-    # todo do while not seen? we must thing and find flag
+        $studentDir = $email.FromAddress.Split("@")[0]
+        Write-Host $email.EmailDateStr # todo create str variable like: yyyy-MM-dd 
 
-#}
+        #creating directory for student
+        if ( Test-Path -Path "$basePath\$studentDir" -PathType Container ) {
+            "Folder $studentDir already exists in path: $basePath\" 
+        } else { 
+            New-Item -Path $basePath -Name "\$studentDir" -ItemType "directory"
+            "Directory for student: $studentDir was created."
+        }
+
+        #creating .html file with email content in student' dir
+        $fileTitle =  $email.Subject
+        $content = $email.Body
+	    Set-Content -Path "$basePath\$studentDir\$fileTitle.html" -Value $content
+
+        #downloading attachments from email
+        for ($i = 0; $i -lt $imap.GetMailNumAttach($email); $i++) {
+          $imap.FetchAttachment($email, $i, "$basePath\$studentDir")
+        }
+            
+    } else {
+        Write-Host "This mail is not from student, sender is $email.FromAddress"
+        # TODO set NOT SEEN
+    }
+    
+    $i = $i + 1
+}
 
 # Disconnect from the IMAP server.
 $success = $imap.Disconnect()
 
 # --------- Main program ends ----------------
 
-
-# functions used in script
-
-Function createDirectory($email) {
-    $studentDir = $email.FromAddress.Split("@")[0]
-    Write-Host "$basePath\$studentDir"
-
-    if ( Test-Path -Path "$basePath\$studentDir" -PathType Container ) {
-        "Folder $studentDir already exists in path: $basePath\" 
-    } else { 
-        New-Item -Path $basePath -Name "\$studentDir" -ItemType "directory"
-        "Directory for student: $studentDir was created."
-    }
-}
-
-Function saveEmailContent($mailNumber) {
-    $fileTitle =  $email.Subject
-    Write-Host $email.Body # todo get body content to variable $content
-    Write-Host $email.EmailDateStr # todo create str variable like: yyyy-MM-dd 
-}
-
-Function downloadEmailAttachments($mailNumber) {
-    $email = $imap.FetchSingle($mailNumber, $bUid)
-    $studentDir = $email.FromAddress.Split("@")[0]
-    for ($i = 0; $i -lt $imap.GetMailNumAttach($email); $i++) {
-       $imap.FetchAttachment($email, $i, "$basePath\$studentDir")
-    }
-}
