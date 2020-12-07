@@ -11,12 +11,20 @@ $imap.Port = 993
 $imap_server = "outlook.office365.com"
 $bUid = $false
 $fetchUids = $true
-$login = "01129802@pw.edu.pl"
+$login = ""
 $password = ""
 $mailbox = "Inbox"
 $basePath = -join("C:\Users\", $env:username, "\Studenci")
 $basePathOthers = -join("C:\Users\", $env:username, "\Pozostałe")
 $notSeenSearch = "NOT SEEN"
+
+# --------- GUI ----------------------------
+
+$login = Read-Host "Login"
+
+$password_secure = Read-Host 'Enter a Password' -AsSecureString
+$BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($password_secure)
+$password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
 
 
 # --------- Main logic starts --------------
